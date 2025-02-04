@@ -1,0 +1,27 @@
+# Create a program that reads three integers from the user and displays them in sorted order (from
+# smallest to largest).
+
+# Solution:
+# Function to read three integers from the user
+def read_integers():
+    numbers = []
+    for i in range(3):
+        num = int(input(f"Enter integer {i+1}: "))
+        numbers.append(num)
+    return numbers
+
+# Function to sort the integers using min, max, and sum
+def sort_integers(numbers):
+    smallest = min(numbers)
+    largest = max(numbers)
+    middle = sum(numbers) - smallest - largest
+    return [smallest, middle, largest]
+
+# Main function
+def main():
+    numbers = read_integers()
+    sorted_numbers = sort_integers(numbers)
+    print("Sorted numbers:", sorted_numbers)
+
+if __name__ == "__main__":
+    main()

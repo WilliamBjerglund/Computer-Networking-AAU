@@ -1,0 +1,22 @@
+# Repeat the previous exercise with tuples.
+
+
+# Solution:
+def move_element(list1, list2, position):
+    if not list1 or position < 0 or position > len(list2):
+        return list1, list2
+
+    element = list1[-1]
+    list1 = list1[:-1]
+    list2 = list2[:position] + (element,) + list2[position:]
+    
+    return list1, list2
+
+# Example:
+list1 = (1, 3, 5)
+list2 = (2, 4, 6)
+position = 1
+
+new_list1, new_list2 = move_element(list1, list2, position)
+print(new_list1)  
+print(new_list2)  

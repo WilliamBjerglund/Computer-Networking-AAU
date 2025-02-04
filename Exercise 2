@@ -1,0 +1,28 @@
+#Develop a program that begins by reading a number of seconds from the user. Then your program
+#should display the equivalent amount of time in the form D:HH:MM:SS, where D, HH, MM, and SS
+#represent days, hours, minutes and seconds respectively. The hours, minutes and seconds should all
+#be formatted so that they occupy exactly two digits, with a leading 0 displayed if necessary.
+
+# Solution:
+# First i want to get the number of seconds from the user
+def convert_seconds(seconds):
+    days = seconds // 86400
+    seconds %= 86400
+    hours = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    return f"{days}:{hours:02}:{minutes:02}:{seconds:02}"
+
+while True:
+    try:
+        user_input = int(input("Enter the number of seconds: "))
+        if user_input < 0:
+            print("Please enter a non-negative integer.")
+        else:
+            break
+    except ValueError:
+        print("Invalid input. Please enter an integer.")
+
+formatted_time = convert_seconds(user_input)
+print("Equivalent time:", formatted_time)

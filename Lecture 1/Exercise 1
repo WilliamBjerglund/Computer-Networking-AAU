@@ -1,0 +1,30 @@
+# Exercise 1 - Area of a Room (Python)
+
+# Write a program that asks the user to enter the width and length of a room. Once the values have
+# been read, your program should compute and display the area of the room. The length and the
+# width will be entered as floating point numbers. Include units in your prompt and output message;
+# either feet or meters, depending on which unit you are more comfortable working with.
+
+# Solution:
+# First i want to get the width and length of the room from the user
+# Get the width of the room from the user
+st = input("Enter the width of the room in meters: ")
+try:
+    width = float(st.replace(',', '.'))
+except ValueError:
+    print("Invalid input. Please enter a numerical value for the width, using a dot or comma as the decimal separator.")
+    exit()
+
+# Get the length of the room from the user
+st = input("Enter the length of the room in meters: ")
+try:
+    length = float(st.replace(',', '.'))
+except ValueError:
+    print("Invalid input. Please enter a numerical value for the length, using a dot or comma as the decimal separator.")
+    exit()
+
+# Calculate the area of the room
+area = width * length
+
+# Display the area of the room
+print(f"The area of the room is {area} square meters.")

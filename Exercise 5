@@ -1,0 +1,16 @@
+# Write and test a Python program that access a function inside a function.
+
+# Solution:
+def outer_function():
+    outer_var = "Hello"
+
+    def inner_function():
+        nonlocal outer_var
+        outer_var += ", World!"
+        return outer_var
+
+    result = inner_function()
+    return result
+
+if __name__ == "__main__":
+    print(outer_function())
