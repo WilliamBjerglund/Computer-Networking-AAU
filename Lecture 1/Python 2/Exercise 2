@@ -1,0 +1,26 @@
+#Create a program that reads the name of a month from the user as a string and then displays the
+#number of days in that month. The length of a month varies from 28 to 31 days
+
+# Solution:
+month = input("Enter the name of a month with first letter capitalized: ")
+
+
+def NumberOfDaysInMonth(month):
+    DaysInMonth = {
+        "January": 31,
+        "February": 28,
+        "March": 31,
+        "April": 30,
+        "May": 31,
+        "June": 30,
+        "July": 31,
+        "August": 31,
+        "September": 30,
+        "October": 31,
+        "November": 30,
+        "December": 31
+    }
+    return DaysInMonth.get(month, "Invalid month")
+
+
+print(f"The number of days in {month} is {NumberOfDaysInMonth(month)}.")

@@ -1,0 +1,29 @@
+# A string is a palindrome if it is identical forward and backward. For example “anna”, “civic”, “level”
+# and “hannah” are all examples of palindromic words. Write a program that reads a string from the
+# user and uses a loop to determines whether or not it is a palindrome. Display the result, including a
+# meaningful output message.
+
+
+# Solution:
+
+def IsItAPalindrome():
+    # Read the string from the user
+    String = input("Enter a string: ").lower().replace(" ", "") # normalize the string
+    # Check if String is actually a string
+    if not String.isalpha():
+        print("Invalid Input. Please enter a letters only (no numbers or special characters)")
+        return
+    # Initialize the variable to store the reverse of the string
+    Reverse = ""
+    # Loop through the string in reverse order
+    for c in reversed(String):
+        Reverse += c
+    # Check if the string is a palindrome
+    if Reverse == String:
+        print(f"{String} is a palindrome")
+    else:
+        print(f"{String} is not a palindrome")
+        
+
+
+IsItAPalindrome()

@@ -1,0 +1,53 @@
+# Write a function named reverseLookup that finds all of the keys in a dictionary that map to a specific
+# value. The function will take the dictionary and the value to search for as its only parameters. It will
+# return a (possibly empty) list of keys from the dictionary that map to the provided value. Include a
+# main program that demonstrates the reverseLookup function as part of your solution to this
+# exercise. Your program should create a dictionary and then show that the reverseLookup function
+# works correctly when it returns multiple keys, a single key, and no keys
+
+
+# Solution:
+def reverseLookup(dictionary, value):
+    """
+    Function to find all keys in a dictionary that map to a specific value
+
+    Args:
+    dictionary: Dictionary to search
+    value: Value to search for
+    """
+    matching_keys = []
+    for key, val in dictionary.items(): # Loop through the dictionary
+        if val == value: # Check if the value matches
+            matching_keys.append(key)
+    return matching_keys # Return the list of keys
+
+def main():
+    # Creating a fake dictionary
+    dictionary = {
+        "apple": 2,
+        "banana": 3,
+        "cherry": 2,
+        "date": 4,
+        "elderberry": 3,
+        "fig": 5
+    }
+    # Testing the reverseLookup function
+    print("Testing reverseLookup function:")
+
+    # Test 1: Multiple keys
+    value1 = 2
+    result1 = reverseLookup(dictionary, value1)
+    print(f"Keys with value {value1}: {result1}") 
+
+    # Test 2: Single key
+    value2 = 5
+    result2 = reverseLookup(dictionary, value2)
+    print(f"Keys with value {value2}: {result2}")
+
+    # Test 3: No keys
+    value3 = 10
+    result3 = reverseLookup(dictionary, value3)
+    print(f"Keys with value {value3}: {result3}")
+
+if __name__ == "__main__":
+    main()

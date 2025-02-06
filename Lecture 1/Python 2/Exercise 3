@@ -1,0 +1,29 @@
+# A particular zoo determines the price of admission based on the age of the guest. Guests 2 years of
+# age and less are admitted without charge. Children between 3 and 12 years of age cost 20.00 kr.
+# Seniors aged 65 years and over cost 25.00 kr. Admission for all other guests is 50.00 kr.
+
+# Solution:
+def ZooAdmissionFee(age):
+    if age <= 2:
+        return 0
+    elif 3 <= age <= 12:
+        return 20.00
+    elif age >= 65:
+        return 25.00
+    else:
+        return 50.00
+    
+def main():
+    AdmissionFee = 0
+    while True:
+        AgeInput = input("Enter the age of the guest (or blank if finished): ").strip()
+        if AgeInput == "":
+           break
+        try: 
+            Age = int(AgeInput)
+            AdmissionFee = ZooAdmissionFee(Age)
+        except ValueError:
+            print("Invalid input. Please enter an integer.")
+    print(f"The admission fee for a {Age} year old guest is {AdmissionFee} kr.")    
+       
+main()

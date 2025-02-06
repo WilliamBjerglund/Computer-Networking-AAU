@@ -1,0 +1,38 @@
+# Two words are anagrams if they contain all of the same letters, but in a different order. For example,
+# “evil” and “live” are anagrams because each contains one e, one i, one l, and one v. Create a
+# program that reads two strings from the user, determines whether or not they are anagrams, and
+# reports the result.
+
+
+# Solution:
+def CountLetters(word):
+    """
+    Function to count the number of letters in a word
+
+    Args:
+    word: Word to count the letters
+    """
+    letter_count = {}
+    for letter in word:
+        if letter.isalpha():  # Check if the character is a letter
+            letter_count[letter] = letter_count.get(letter, 0) + 1
+    return letter_count
+
+def AreTheyAnagrams(word1, word2):
+    """
+    Function to check if two words are anagrams
+    
+    Args:
+    word1: First word
+    word2: Second word
+    """
+    return CountLetters(word1) == CountLetters(word2)
+
+
+word1 = input("Enter the first word: ").lower()
+word2 = input("Enter the second word: ").lower()
+
+if AreTheyAnagrams(word1, word2):
+    print(f"{word1} and {word2} are anagrams")
+else:
+    print(f"{word1} and {word2} are not anagrams")

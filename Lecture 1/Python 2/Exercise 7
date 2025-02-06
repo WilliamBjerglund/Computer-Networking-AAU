@@ -1,0 +1,59 @@
+# When writing out a list of items in English, one normally separates the items with commas. In
+# addition, the word “and” is normally included before the last item, unless the list only contains one
+# item. Consider the following four lists:
+#                apples
+#         apples, and oranges
+#     apples, oranges, and bananas
+# apples, oranges, bananas, and lemons
+# Write a function that takes a list of strings as its only parameter. Your function should return a string
+# that contains all of the items in the list formatted in the manner described previously as its only
+# result. While the examples shown previously only include lists containing four elements or less, your
+# function should behave correctly for lists of any length. Include a main program that reads several
+# items from the user, formats them by calling your function, and then displays the result returned by
+# the function.
+
+
+# Solution:
+def FormattingList(items):
+    """
+    Function to format a list of items
+
+    Args:
+    items: List of strings
+    """
+    if not items:
+      return "" # Return an empty string if the list is empty
+    elif len(items) == 1: # Return the only item if the list contains only one item
+      return items[0]
+    elif len(items) == 2: # Return the two items separated by "and" if the list contains two items
+      return items[0] + " and " + items[1]
+    else:
+      # Return the items separated by commas and "and"
+      return ", ".join(items[:-1]) + ", and " + items[-1] 
+    
+def DisplayAsTree(items):
+    """
+    Function to display the items as a tree. This is extra cause of your visualization
+    """
+    max_width = len(FormattingList(items))  # Get the longest formatted width
+
+    for i in range(1, len(items) + 1):  # Loop through 1 to full length
+        formatted = FormattingList(items[:i])
+        print(formatted.center(max_width))  # Center-align each line
+
+
+def main():
+    """
+    Main program to get input and display the formatted list.
+    """
+    items = input("Enter the items separated by commas: ").split(",")
+    items = [item.strip() for item in items]  # Remove leading and trailing whitespaces
+    
+    print("\nFormatted List:")
+    print(FormattingList(items))  # Display the formatted list
+
+    print("\nTree Structure:")
+    DisplayAsTree(items)  # Display the tree structure
+
+if __name__ == "__main__":
+    main()
