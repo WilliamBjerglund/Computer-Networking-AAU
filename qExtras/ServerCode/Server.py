@@ -35,6 +35,9 @@ def HandleClient(ClientSocket, addr):
     """
     This function connects to one client and handle its communication.
     """
+    SignalColor = "\033[93m" # Yellow
+    resetColor = "\033[0m" # Reset color
+
     #Ask the client for their persona / username
     ClientSocket.send("Enter your name: ".encode())
     ClientName = ClientSocket.recv(1024).decode().strip()
@@ -98,7 +101,7 @@ def HandleClient(ClientSocket, addr):
                 ClientSocket.send(response.encode())
             else:
                 # If the Message is a regular normal message do nothing
-                response = f"[{cmdHandler.Timestamp()}] {ClientName}: {message}"
+                response = f"{SignalColor}[{cmdHandler.Timestamp()}]{resetColor} {ClientName}: {message}"
                 
                 with Globals.lock:
                     for client in Globals.ConnectedClients.values():
