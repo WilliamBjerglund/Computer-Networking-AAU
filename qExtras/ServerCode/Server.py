@@ -5,7 +5,7 @@ import Globals
 from Commands import CommandDict, Timestamp
 
 
-#TODO: Remove Global Variables and make a global python script for shared variables. # ConnectedClients, ClientCount, possibly Lock if needed.
+# TODO: Possibly Refactor Commands turn into a Class for Ease later and then upgrade help to actually show each functions purrpose and usage.
 
 
 def GetLocalIP():
