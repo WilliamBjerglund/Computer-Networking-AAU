@@ -41,8 +41,28 @@ def HandleClient(ClientSocket, addr):
     #Ask the client for their persona / username
     ClientSocket.send("Enter your name: ".encode())
     ClientName = ClientSocket.recv(1024).decode().strip()
-    if not ClientName: # Assign a random name if the client doesn't provide one
-        ClientName = f"Client{random.randint(1, 1000)}"
+    # If the name provided is a empty string assign a random name.
+    while True:
+        with lock:
+            if not ClientName:
+                while True:
+                    randomName = f"Client{random.randint(1, 1000)}"
+                    if randomName not in ConnectedClients:
+                        ClientName = randomName
+                        break
+            while ClientName in ConnectedClients:
+                ClientSocket.send("Name already taken. Please enter a different name: ".encode())
+                ClientName = ClientSocket.recv(1024).decode().strip()
+                # If the name provided is a empty string assign a random name.
+                if not ClientName:
+                    while True:
+                        randomName = f"Client{random.randint(1, 1000)}"
+                        if randomName not in ConnectedClients:
+                            ClientName = randomName
+                            break
+            # Exit the loop if ClientName is unique.
+            if ClientName not in ConnectedClients:
+                break
 
     # Now we want to store the client's name in the dictionary
     with lock:
@@ -76,12 +96,20 @@ def HandleClient(ClientSocket, addr):
                         response = CommandDict[command](ClientName)
                 else:
                     response = "Invalid command. for help type !help"
+
+                # Send the response back to the client
+                ClientSocket.send(response.encode())
             else:
                 # If the Message is a regular normal message do nothing
-                response = f"[{Timestamp()}] Server received: {message}"
-            
-            # Send the response back to the client
-            ClientSocket.send(response.encode())
+                response = f"[{Timestamp()}] {ClientName}: {message}"
+                
+                with lock:
+                    for client in ConnectedClients.values():
+                        try:
+                            client.send(response.encode())
+                        except Exception as e:
+                            print(f"[{Timestamp()}] Error broadcasting to a client: {e}")
+                            
 
         except Exception as e:
             print(f"[{Timestamp()}] Error: {e}")
@@ -119,20 +147,24 @@ def ServerCommandCheck():
     """
     This function listen and checks for server-side commands ensuring they are done only by server.
     """
-    while True:
-        command = input("Server Command: ").strip()
-        if command.startswith("!broadcast"):
-            message = command[len("!broadcast"):].strip()
-            if message:
-                Broadcast(message)
-                print(f"[{Timestamp()}] Broadcast sent: {message}")
+    try:
+        while True:
+            command = input("Server Command: ").strip()
+            if command.startswith("!broadcast"):
+                message = command[len("!broadcast"):].strip()
+                if message:
+                    Broadcast(message)
+                    print(f"[{Timestamp()}] Broadcast sent: {message}")
+                else:
+                    print("Usage: !broadcast <message>")
+            elif command == "!exit":
+                print("Shutting down server...")
+                break
             else:
-                print("Usage: !broadcast <message>")
-        elif command == "!exit":
-            print("Shutting down server...")
-            break
-        else:
-            print("Unknown server command.")
+                print("Unknown server command.")
+    except KeyboardInterrupt:
+        # Catch Ctrl+C and exit gracefully
+        print("Keyboard Interrupt: Shutting down server...")
 
 
 # Now we want to initialize our simple server.
