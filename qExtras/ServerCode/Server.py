@@ -2,11 +2,9 @@ import socket
 import threading
 import random
 import Globals
-from Commands import CommandDict, Timestamp
+from Commands import Commands
 
-
-# TODO: Possibly Refactor Commands turn into a Class for Ease later and then upgrade help to actually show each functions purrpose and usage.
-
+cmdHandler = Commands()
 
 def GetLocalIP():
     """
@@ -28,7 +26,7 @@ def GetLocalIP():
 HOST = "0.0.0.0" # Currently binds to all network interfaces should change to the Hotspot or pref Host Server IP
 PORT = 12345 # change to pref port number
 SERVER_IP = GetLocalIP() # Get the local IP address of the server automatically
-print(f"[{Timestamp()}] Server detected IP: {SERVER_IP}")
+print(f"[{cmdHandler.Timestamp()}] Server detected IP: {SERVER_IP}")
 
 # ConnectedClients, ClientCount, and lock are defined in the Globals.py file
 
@@ -68,7 +66,7 @@ def HandleClient(ClientSocket, addr):
         Globals.ConnectedClients[ClientName] = ClientSocket
         Globals.ClientCount += 1
 
-    print(f"[{Timestamp()}] New connection from {addr}")
+    print(f"[{cmdHandler.Timestamp()}] New connection from {addr}")
 
     
     while True:
@@ -77,7 +75,7 @@ def HandleClient(ClientSocket, addr):
             message = ClientSocket.recv(1024).decode()
             if not message:
                 break
-            print(f"[{Timestamp()}] Client ({addr}): {message}")
+            print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
 
             # Check if the message is meant to be a command
             if message.startswith("!"):
@@ -88,11 +86,11 @@ def HandleClient(ClientSocket, addr):
                     response = "Access Denied: Only the server can broadcast messages."
 
                 # Check if the command exists in the dictionary
-                elif command in CommandDict:
+                elif command in cmdHandler.CommandDict:
                     if command == "whoami":
-                        response = CommandDict[command](ClientName, addr) # Pass the client's name and address to the function
+                        response = cmdHandler.CommandDict[command](ClientName, addr) # Pass the client's name and address to the function
                     else:
-                        response = CommandDict[command](ClientName)
+                        response = cmdHandler.CommandDict[command](ClientName)
                 else:
                     response = "Invalid command. for help type !help"
 
@@ -100,18 +98,18 @@ def HandleClient(ClientSocket, addr):
                 ClientSocket.send(response.encode())
             else:
                 # If the Message is a regular normal message do nothing
-                response = f"[{Timestamp()}] {ClientName}: {message}"
+                response = f"[{cmdHandler.Timestamp()}] {ClientName}: {message}"
                 
                 with Globals.lock:
                     for client in Globals.ConnectedClients.values():
                         try:
                             client.send(response.encode())
                         except Exception as e:
-                            print(f"[{Timestamp()}] Error broadcasting to a client: {e}")
+                            print(f"[{cmdHandler.Timestamp()}] Error broadcasting to a client: {e}")
                             
 
         except Exception as e:
-            print(f"[{Timestamp()}] Error: {e}")
+            print(f"[{cmdHandler.Timestamp()}] Error: {e}")
             break
     
     # Remove client from list on disconnect
@@ -120,7 +118,7 @@ def HandleClient(ClientSocket, addr):
         Globals.ClientCount -= 1
     
     # Close the connection
-    print(f"[{Timestamp()}] Connection closed: {addr}")
+    print(f"[{cmdHandler.Timestamp()}] Connection closed: {addr}")
     ClientSocket.close()
 
 
@@ -153,7 +151,7 @@ def ServerCommandCheck():
                 message = command[len("!broadcast"):].strip()
                 if message:
                     Broadcast(message)
-                    print(f"[{Timestamp()}] Broadcast sent: {message}")
+                    print(f"[{cmdHandler.Timestamp()}] Broadcast sent: {message}")
                 else:
                     print("Usage: !broadcast <message>")
             elif command == "!exit":
@@ -173,7 +171,7 @@ ServerSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 try:
     ServerSocket.bind((HOST, PORT))
     ServerSocket.listen(5)
-    print(f"[{Timestamp()}] Server started on {SERVER_IP}:{PORT}")
+    print(f"[{cmdHandler.Timestamp()}] Server started on {SERVER_IP}:{PORT}")
 
     threading.Thread(target=ServerCommandCheck, daemon=True).start()
 
@@ -182,7 +180,7 @@ try:
         ClientThread = threading.Thread(target=HandleClient, args=(ClientSocket, addr), daemon=True)
         ClientThread.start()
 except Exception as e:
-    print(f"[{Timestamp()}] Server Error: {e}")
+    print(f"[{cmdHandler.Timestamp()}] Server Error: {e}")
 finally:
     ServerSocket.close()
-    print(f"[{Timestamp()}] Server closed")
+    print(f"[{cmdHandler.Timestamp()}] Server closed")
