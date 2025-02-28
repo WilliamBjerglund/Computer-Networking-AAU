@@ -3,6 +3,9 @@ import threading
 import random
 from Commands import CommandDict, Timestamp
 
+
+#TODO: Remove Global Variables and make a global python script for shared variables. # ConnectedClients, ClientCount, possibly Lock if needed.
+
 def GetLocalIP():
     """
     This function returns the local IP address of the server.
