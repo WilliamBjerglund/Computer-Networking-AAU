@@ -1,4 +1,5 @@
 import datetime
+import Globals
 
 # Helper function to get the current time and date as per the server.
 def Timestamp():
@@ -37,12 +38,17 @@ def whoami(ClientName, ClientAddr):
     """
     return f"Your name is {ClientName} and you are connected from {ClientAddr}"
 
-
+def ListActiveClients(ClientName):
+    """
+    Returns the list of active clients Usernames.
+    Need to make a global python script for shared variables.
+    """
+    return "Active Clients: " + ", ".join(Globals.ConnectedClients.keys())
 
 # Command Dictionary to easily add more commands
 CommandDict = {
-    "whoami": whoami,
     "help": commandhelp,
-    "time": servertime
-
+    "whoami": whoami,
+    "time": servertime,
+    "list": ListActiveClients
 }

@@ -1,10 +1,12 @@
 import socket
 import threading
 import random
+import Globals
 from Commands import CommandDict, Timestamp
 
 
 #TODO: Remove Global Variables and make a global python script for shared variables. # ConnectedClients, ClientCount, possibly Lock if needed.
+
 
 def GetLocalIP():
     """
@@ -28,49 +30,43 @@ PORT = 12345 # change to pref port number
 SERVER_IP = GetLocalIP() # Get the local IP address of the server automatically
 print(f"[{Timestamp()}] Server detected IP: {SERVER_IP}")
 
-    # This part of config sets the server up so people can have identities on their.
-ConnectedClients = {} # stores names of connected clients
-ClientCount = 0
-lock = threading.Lock() # Prevents race conditions when modifying the ConnectedClients dictionary
-
+# ConnectedClients, ClientCount, and lock are defined in the Globals.py file
 
 # Server code
 def HandleClient(ClientSocket, addr):
     """
     This function connects to one client and handle its communication.
     """
-    global ClientCount
-
     #Ask the client for their persona / username
     ClientSocket.send("Enter your name: ".encode())
     ClientName = ClientSocket.recv(1024).decode().strip()
     # If the name provided is a empty string assign a random name.
     while True:
-        with lock:
+        with Globals.lock:
             if not ClientName:
                 while True:
                     randomName = f"Client{random.randint(1, 1000)}"
-                    if randomName not in ConnectedClients:
+                    if randomName not in Globals.ConnectedClients:
                         ClientName = randomName
                         break
-            while ClientName in ConnectedClients:
+            while ClientName in Globals.ConnectedClients:
                 ClientSocket.send("Name already taken. Please enter a different name: ".encode())
                 ClientName = ClientSocket.recv(1024).decode().strip()
                 # If the name provided is a empty string assign a random name.
                 if not ClientName:
                     while True:
                         randomName = f"Client{random.randint(1, 1000)}"
-                        if randomName not in ConnectedClients:
+                        if randomName not in Globals.ConnectedClients:
                             ClientName = randomName
                             break
             # Exit the loop if ClientName is unique.
-            if ClientName not in ConnectedClients:
+            if ClientName not in Globals.ConnectedClients:
                 break
 
     # Now we want to store the client's name in the dictionary
-    with lock:
-        ConnectedClients[ClientName] = ClientSocket
-        ClientCount += 1
+    with Globals.lock:
+        Globals.ConnectedClients[ClientName] = ClientSocket
+        Globals.ClientCount += 1
 
     print(f"[{Timestamp()}] New connection from {addr}")
 
@@ -106,8 +102,8 @@ def HandleClient(ClientSocket, addr):
                 # If the Message is a regular normal message do nothing
                 response = f"[{Timestamp()}] {ClientName}: {message}"
                 
-                with lock:
-                    for client in ConnectedClients.values():
+                with Globals.lock:
+                    for client in Globals.ConnectedClients.values():
                         try:
                             client.send(response.encode())
                         except Exception as e:
@@ -119,9 +115,9 @@ def HandleClient(ClientSocket, addr):
             break
     
     # Remove client from list on disconnect
-    with lock:
-        del ConnectedClients[ClientName]
-        ClientCount -= 1
+    with Globals.lock:
+        del Globals.ConnectedClients[ClientName]
+        Globals.ClientCount -= 1
     
     # Close the connection
     print(f"[{Timestamp()}] Connection closed: {addr}")
@@ -139,8 +135,8 @@ def Broadcast(message):
 
     MessageFormat = f"{SignalColor}[BROADCAST]{resetColor} {message}"
 
-    with lock: 
-        for client in ConnectedClients.values():
+    with Globals.lock: 
+        for client in Globals.ConnectedClients.values():
             try:
                 client.send(MessageFormat.encode())
             except:
