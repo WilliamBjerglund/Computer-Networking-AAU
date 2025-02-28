@@ -148,7 +148,7 @@ def ServerCommandCheck():
     """
     try:
         while True:
-            command = input("Server Command: ").strip()
+            command = input("Server Command: ").strip().lower()
             if command.startswith("!broadcast"):
                 message = command[len("!broadcast"):].strip()
                 if message:
