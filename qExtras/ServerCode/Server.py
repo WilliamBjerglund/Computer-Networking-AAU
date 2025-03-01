@@ -141,7 +141,8 @@ async def handleClientMessages(reader, writer, clientName, addr, RateLimit=RATEL
 async def handleCommand(message, writer, clientName, addr):
     command = message[1:].lower()
     if command.startswith("pm"):
-        await handlePrivateMessage(command, writer, clientName)
+        await cmdHandler.handlePrivateMessage(command, writer, clientName)
+        return # Exit function to prevent writer.write() from being called again.
     elif command == "broadcast":
         response = "Access Denied: Only the server can broadcast messages."
     elif command in cmdHandler.CommandDict:
@@ -151,24 +152,6 @@ async def handleCommand(message, writer, clientName, addr):
             response = cmdHandler.CommandDict[command](clientName)
     else:
         response = "Invalid command. for help type !help"
-    writer.write(response.encode())
-    await writer.drain()
-
-async def handlePrivateMessage(command, writer, clientName):
-    parts = command.split(' ', 2)
-    if len(parts) < 3:
-        response = "Usage: !pm <username> <message>"
-    else:
-        targetUser, privateMessage = parts[1], parts[2]
-        async with Globals.lock:
-            if targetUser in Globals.ConnectedClients:
-                targetWriter = Globals.ConnectedClients[targetUser]
-                response = f"Private message from {clientName}: {privateMessage}"
-                targetWriter.write(response.encode())
-                await targetWriter.drain()
-                response = "Private message sent."
-            else:
-                response = "User not found."
     writer.write(response.encode())
     await writer.drain()
 

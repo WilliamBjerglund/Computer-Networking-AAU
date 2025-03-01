@@ -1,5 +1,6 @@
 import datetime
 import Globals
+#import asyncio
 
 class Commands:
     # Command Color
@@ -13,7 +14,8 @@ class Commands:
             "help": self.commandhelp,
             "whoami": self.whoami,
             "time": self.servertime,
-            "list": self.ListActiveClients
+            "list": self.ListActiveClients,
+            "pm": self.handlePrivateMessage
         }
 
     @staticmethod
@@ -49,3 +51,21 @@ class Commands:
             ClientName (str): The name of the requesting client.
         """
         return f"{self.SignalColor}Active Clients: {', '.join(Globals.ConnectedClients.keys())}{self.resetColor}"
+    
+    async def handlePrivateMessage(self, command, writer, clientName):
+        parts = command.split(' ', 2)
+        if len(parts) < 3:
+            response = "Usage: !pm <username> <message>"
+        else:
+            targetUser, privateMessage = parts[1], parts[2]
+            async with Globals.lock:
+                if targetUser in Globals.ConnectedClients:
+                    targetWriter = Globals.ConnectedClients[targetUser]
+                    response = f"Private message from {clientName}: {privateMessage}"
+                    targetWriter.write(response.encode())
+                    await targetWriter.drain()
+                    response = "Private message sent."
+                else:
+                    response = "User not found."
+        writer.write(response.encode())
+        await writer.drain()
