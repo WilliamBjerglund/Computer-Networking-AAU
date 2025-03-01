@@ -29,6 +29,10 @@ RATELIMIT = 5
 TIMEWINDOW = 8
 # Dictionary to track message timestamps for each client
 clientMessageTimestamps = {}
+# Heartbeat timeout in seconds
+# Heartbeat parameters
+HeartbeatInterval = 30  # seconds
+HeartbeatTimeout = 60  # seconds
 
 async def HandleClient(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     """
@@ -81,26 +85,49 @@ async def registerClient(clientName, writer):
     async with Globals.lock:
         Globals.ConnectedClients[clientName] = writer
         Globals.ClientCount += 1
+        Globals.LastClientHeartbeat[clientName] = time.time()
 
 async def unregisterClient(clientName):
     async with Globals.lock:
         if clientName in Globals.ConnectedClients:
             del Globals.ConnectedClients[clientName]
             Globals.ClientCount -= 1
+            del Globals.LastClientHeartbeat[clientName]
 
-async def handleClientMessages(reader, writer, clientName, addr, RATE_LIMIT=RATELIMIT, TIME_WINDOW=TIMEWINDOW):
+async def CheckHeartbeat():
+    """
+    This Function checks for heartbeat messages from clients.
+    """
+    while True:
+        CurrentTime = time.time()
+        await asyncio.sleep(HeartbeatInterval)
+        async with Globals.lock:
+            for clientName, LastHeartbeat in list(Globals.LastClientHeartbeat.items()):
+                if CurrentTime - LastHeartbeat > HeartbeatTimeout:
+                    print(f"[{cmdHandler.Timestamp()}] Client {clientName} disconnected due to heartbeat timeout.")
+                    writer = Globals.ConnectedClients[clientName]
+                    writer.close()
+                    await writer.wait_closed()
+                    await unregisterClient(clientName)
+
+async def handleClientMessages(reader, writer, clientName, addr, RateLimit=RATELIMIT, TimeWindow=TIMEWINDOW):
     while True:
         data = await reader.read(1024)
         if not data:
             break
         message = data.decode().strip()
         print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
+        # Confirm Heartbeat
+        if message == "heartbeat":
+            async with Globals.lock:
+                Globals.LastClientHeartbeat[clientName] = time.time()
+            continue
         # Check for rate limiting
         currentTime = time.time()
         if clientName not in clientMessageTimestamps:
             clientMessageTimestamps[clientName] = []
-        clientMessageTimestamps[clientName] = [timestamp for timestamp in clientMessageTimestamps[clientName] if currentTime - timestamp < TIME_WINDOW]
-        if len(clientMessageTimestamps[clientName]) >= RATE_LIMIT:
+        clientMessageTimestamps[clientName] = [timestamp for timestamp in clientMessageTimestamps[clientName] if currentTime - timestamp < TimeWindow]
+        if len(clientMessageTimestamps[clientName]) >= RateLimit:
             response = "Rate limit exceeded. Please wait before sending more messages."
             writer.write(response.encode())
             await writer.drain()
@@ -196,6 +223,7 @@ async def ServerCommandCheck():
         else:
             print("Unknown server command.")
 
+
 async def Main():
     SERVER_IP = await GetLocalIP()
     print(f"[{cmdHandler.Timestamp()}] Server detected IP: {SERVER_IP}")
@@ -205,6 +233,8 @@ async def Main():
 
     # Start the server command check as a background task
     asyncio.create_task(ServerCommandCheck())
+    # Start the heartbeat check as a background task
+    asyncio.create_task(CheckHeartbeat())
 
     async with server:
         await server.serve_forever()

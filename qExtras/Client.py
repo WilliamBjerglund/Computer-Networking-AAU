@@ -1,5 +1,18 @@
 import socket
 import threading
+import time
+
+def SendHeartbeat(sock):
+    """
+    Sends a heartbeat message to the server every 30 seconds.
+    """
+    while True:
+        try:
+            sock.send("heartbeat".encode())
+            time.sleep(30)
+        except Exception as e:
+            print("Error sending heartbeat:", e)
+            break
 
 def receive_messages(sock):
     """
@@ -35,6 +48,8 @@ def main():
 
     # Now start the thread to continuously receive messages.
     threading.Thread(target=receive_messages, args=(client_socket,), daemon=True).start()
+    # Start the heartbeat thread
+    threading.Thread(target=SendHeartbeat, args=(client_socket,), daemon=True).start()
 
     # Main loop to send messages
     while True:
