@@ -10,6 +10,10 @@ cmdHandler = Commands()
 async def GetLocalIP():
     """
     Returns the local IP address by connecting to a public DNS.
+    Falls back to 127.0.0.1 or localhost if the connection fails.
+
+    Returns:
+    str: The local IP address of the server.
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -21,27 +25,35 @@ async def GetLocalIP():
         s.close()
     return LocalIP
 
+# Server Configuration
 HOST = "0.0.0.0"
 PORT = 12345
 
-# Parameters for rate limiting messages
+# Parameters for rate limiting messages (spam prevention)
 RATELIMIT = 5
 TIMEWINDOW = 8
-# Dictionary to track message timestamps for each client
+# Dictionary to track message timestamps for each client (rate limiting)
 clientMessageTimestamps = {}
-# Heartbeat timeout in seconds
-# Heartbeat parameters
-HeartbeatInterval = 30  # seconds
-HeartbeatTimeout = 60  # seconds
+
+# Heartbeat configuration
+HeartbeatInterval = 30  # Interval to check heartbeats (seconds)
+HeartbeatTimeout = 61  # Maximum allowed time without a heartbeat (seconds)
+
 
 async def HandleClient(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     """
-    parem: RateLimit: 5
+    This function is the main handler for client connections.
+    - Registers the client with a unique name.
+    - Handles client messages and commands.
+    - Unregisters the client when the connection is closed.
+    
+    Args:
+        reader (asyncio.StreamReader): Stream reader object for client data.
+        writer (asyncio.StreamWriter): Stream writer object for delivering data to the client.
     """
     addr = writer.get_extra_info('peername')
     clientName = await getClientName(reader, writer)
     await registerClient(clientName, writer)
-
     print(f"[{cmdHandler.Timestamp()}] New connection from {addr}")
 
     try:
@@ -54,12 +66,23 @@ async def HandleClient(reader: asyncio.StreamReader, writer: asyncio.StreamWrite
         writer.close()
         await writer.wait_closed()
 
+
 async def getClientName(reader, writer):
+    """
+    This function prompts the client to enter a name and validates it.
+    If the name is already taken, the client is prompted to enter a different name and assigns a random name if none is provided.
+
+    Args:
+        reader (asyncio.StreamReader): Client's stream reader object.
+        writer (asyncio.StreamWriter): Client's stream writer object.
+
+    Returns:
+        str: The unique name of the client.
+    """
     writer.write("Enter your name: ".encode())
     await writer.drain()
     data = await reader.read(1024)
     clientName = data.decode().strip()
-
     while True:
         async with Globals.lock:
             if not clientName:
@@ -75,28 +98,52 @@ async def getClientName(reader, writer):
                 break
     return clientName
 
+
 async def generateRandomName():
+    """
+    Simple function to generate a random name for the client provided the name is not already taken and they did not provide a name.
+
+    Returns:
+        str: A random name for the client.
+    """
     while True:
         randomName = f"Client{random.randint(1, 1000)}"
         if randomName not in Globals.ConnectedClients:
             return randomName
 
+
 async def registerClient(clientName, writer):
+    """
+    Registers a new client with the global list of connected clients.
+
+    Args:
+        clientName (str): The unique name of the client.
+        writer (asyncio.StreamWriter): The stream writer object for the client.
+    """
     async with Globals.lock:
         Globals.ConnectedClients[clientName] = writer
         Globals.ClientCount += 1
         Globals.LastClientHeartbeat[clientName] = time.time()
 
+
 async def unregisterClient(clientName):
+    """
+    Removes a client from the global list of connected clients.
+
+    Args:
+        clientName (str): The unique name of the client to unregister.
+    """
     async with Globals.lock:
         if clientName in Globals.ConnectedClients:
             del Globals.ConnectedClients[clientName]
             Globals.ClientCount -= 1
             del Globals.LastClientHeartbeat[clientName]
 
+
 async def CheckHeartbeat():
     """
-    This Function checks for heartbeat messages from clients.
+    This function will do periodic checks to see if any clients have disconnected due to a heartbeat timeout.
+    If a client fails to send heartbeats within the given timeout period, they will be disconnected.
     """
     while True:
         CurrentTime = time.time()
@@ -110,7 +157,19 @@ async def CheckHeartbeat():
                     await writer.wait_closed()
                     await unregisterClient(clientName)
 
+
 async def handleClientMessages(reader, writer, clientName, addr, RateLimit=RATELIMIT, TimeWindow=TIMEWINDOW):
+    """
+    Handles any incoming messages from the client.
+
+    Args:
+        reader (asyncio.StreamReader): Client's stream reader object to receive messages.
+        writer (asyncio.StreamWriter): Client's stream writer object to send responses.
+        clientName (str): The unique name of the client.
+        addr (tuple): The IP address and port of the client.
+        RateLimit (int): The maximum number of messages allowed within the TimeWindow.
+        TimeWindow (int): The time window in seconds for the RateLimit before a heartbeat disconnect.
+    """
     while True:
         data = await reader.read(1024)
         if not data:
@@ -138,7 +197,17 @@ async def handleClientMessages(reader, writer, clientName, addr, RateLimit=RATEL
         else:
             await broadcastMessage(clientName, message)
 
+
 async def handleCommand(message, writer, clientName, addr):
+    """
+    Simple command handler for client commands.
+
+    Args:
+        message (str): The message containing the command.
+        writer (asyncio.StreamWriter): The stream writer object responding to the client.
+        clientName (str): The unique name of the client sending the command.
+        addr (tuple): The IP address and port of the client.
+    """
     parts = message[1:].split(' ', 1)
     commandKey = parts[0].lower()
     args = parts[1] if len(parts) > 1 else ""
@@ -157,9 +226,18 @@ async def handleCommand(message, writer, clientName, addr):
     writer.write(response.encode())
     await writer.drain()
 
+
 async def broadcastMessage(clientName, message):
-    signalColor = "\033[93m"
-    resetColor = "\033[0m"
+    """
+    Sends a broadcasted message to all connected clients.
+    Think of it as a global information message to clients.
+
+    Args:
+        clientName (str): The unique name of the client sending the message.
+        message (str): The message to broadcast.
+    """
+    signalColor = "\033[93m" # Yellow color for terminal output
+    resetColor = "\033[0m" # Reset color to default terminal
     response = f"{signalColor}[{cmdHandler.Timestamp()}]{resetColor} {clientName}: {message}"
     async with Globals.lock:
         for clientWriter in Globals.ConnectedClients.values():
@@ -169,12 +247,16 @@ async def broadcastMessage(clientName, message):
             except Exception as e:
                 print(f"[{cmdHandler.Timestamp()}] Error broadcasting to a client: {e}")
 
+
 async def Broadcast(message):
     """
     Broadcasts a message to all connected clients.
+
+    Args:
+        message (str): The message to be broadcasted to all clients.
     """
-    signalColor = "\033[93m"
-    resetColor = "\033[0m"
+    signalColor = "\033[93m" # Yellow color for terminal output
+    resetColor = "\033[0m" # Reset color to default terminal
     messageFormat = f"{signalColor}[BROADCAST]{resetColor} {message}"
     async with Globals.lock:
         for writer in Globals.ConnectedClients.values():
@@ -182,11 +264,17 @@ async def Broadcast(message):
                 writer.write(messageFormat.encode())
                 await writer.drain()
             except Exception:
-                pass
+                pass # Ignore exceptions for now
+
 
 async def ServerCommandCheck():
     """
-    Checks for server-side commands (run in a background task).
+    Checks the server for admin commands via console input.
+
+    - '!broadcast <message>': Broadcasts a message to all connected clients.
+    - '!exit': Shuts down the server and disconnects all clients.
+
+    Runs in a background task to avoid blocking the event loop.
     """
     loop = asyncio.get_event_loop()
     while True:
@@ -210,6 +298,9 @@ async def ServerCommandCheck():
 
 
 async def Main():
+    """
+    Main entry point of the server. Starts the server and background tasks.
+    """
     SERVER_IP = await GetLocalIP()
     print(f"[{cmdHandler.Timestamp()}] Server detected IP: {SERVER_IP}")
 
@@ -223,6 +314,8 @@ async def Main():
 
     async with server:
         await server.serve_forever()
+
+
 
 if __name__ == "__main__":
     try:
