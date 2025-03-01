@@ -2,6 +2,7 @@ import asyncio
 import random
 import socket
 import Globals
+import time
 from Commands import Commands
 
 cmdHandler = Commands()
@@ -23,7 +24,16 @@ async def GetLocalIP():
 HOST = "0.0.0.0"
 PORT = 12345
 
+# Parameters for rate limiting messages
+RATELIMIT = 5
+TIMEWINDOW = 8
+# Dictionary to track message timestamps for each client
+clientMessageTimestamps = {}
+
 async def HandleClient(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    """
+    parem: RateLimit: 5
+    """
     addr = writer.get_extra_info('peername')
     clientName = await getClientName(reader, writer)
     await registerClient(clientName, writer)
@@ -78,14 +88,24 @@ async def unregisterClient(clientName):
             del Globals.ConnectedClients[clientName]
             Globals.ClientCount -= 1
 
-async def handleClientMessages(reader, writer, clientName, addr):
+async def handleClientMessages(reader, writer, clientName, addr, RATE_LIMIT=RATELIMIT, TIME_WINDOW=TIMEWINDOW):
     while True:
         data = await reader.read(1024)
         if not data:
             break
         message = data.decode().strip()
         print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
-
+        # Check for rate limiting
+        currentTime = time.time()
+        if clientName not in clientMessageTimestamps:
+            clientMessageTimestamps[clientName] = []
+        clientMessageTimestamps[clientName] = [timestamp for timestamp in clientMessageTimestamps[clientName] if currentTime - timestamp < TIME_WINDOW]
+        if len(clientMessageTimestamps[clientName]) >= RATE_LIMIT:
+            response = "Rate limit exceeded. Please wait before sending more messages."
+            writer.write(response.encode())
+            await writer.drain()
+            continue
+        clientMessageTimestamps[clientName].append(currentTime)
         if message.startswith("!"):
             await handleCommand(message, writer, clientName, addr)
         else:
