@@ -139,17 +139,19 @@ async def handleClientMessages(reader, writer, clientName, addr, RateLimit=RATEL
             await broadcastMessage(clientName, message)
 
 async def handleCommand(message, writer, clientName, addr):
-    command = message[1:].lower()
-    if command.startswith("pm"):
-        await cmdHandler.handlePrivateMessage(command, writer, clientName)
-        return # Exit function to prevent writer.write() from being called again.
-    elif command == "broadcast":
-        response = "Access Denied: Only the server can broadcast messages."
-    elif command in cmdHandler.CommandDict:
-        if command == "whoami":
-            response = cmdHandler.CommandDict[command](clientName, addr)
+    parts = message[1:].split(' ', 1)
+    commandKey = parts[0].lower()
+    args = parts[1] if len(parts) > 1 else ""
+    if commandKey in cmdHandler.CommandDict:
+        CommandFunction = cmdHandler.CommandDict[commandKey]
+        # if the command is "pm", we call its signature
+        if commandKey == "pm":
+            await CommandFunction(message, writer, clientName)
+            return # handles its own response
+        elif commandKey == "whoami":
+            response = CommandFunction(clientName, addr)
         else:
-            response = cmdHandler.CommandDict[command](clientName)
+            response = CommandFunction(clientName)
     else:
         response = "Invalid command. for help type !help"
     writer.write(response.encode())
