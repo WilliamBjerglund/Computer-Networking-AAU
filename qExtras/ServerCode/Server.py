@@ -1,189 +1,166 @@
-import socket
-import threading
+import asyncio
 import random
+import socket
 import Globals
 from Commands import Commands
 
 cmdHandler = Commands()
 
-def GetLocalIP():
+async def GetLocalIP():
     """
-    This function returns the local IP address of the server.
+    Returns the local IP address by connecting to a public DNS.
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # Connect to public DNS to trick the best local network interface to be used
-        s.connect(("8.8.8.8", 80)) # Google's public DNS
+        s.connect(("8.8.8.8", 80))  # Google's public DNS
         LocalIP = s.getsockname()[0]
     except Exception:
-        LocalIP = "127.0.0.1" # Fallback to localhost
+        LocalIP = "127.0.0.1"
     finally:
         s.close()
     return LocalIP
 
+HOST = "0.0.0.0"
+PORT = 12345
 
-# Server Config
-HOST = "0.0.0.0" # Currently binds to all network interfaces should change to the Hotspot or pref Host Server IP
-PORT = 12345 # change to pref port number
-SERVER_IP = GetLocalIP() # Get the local IP address of the server automatically
-print(f"[{cmdHandler.Timestamp()}] Server detected IP: {SERVER_IP}")
+async def HandleClient(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    addr = writer.get_extra_info('peername')
+    # Ask the client for their name
+    writer.write("Enter your name: ".encode())
+    await writer.drain()
+    data = await reader.read(1024)
+    clientName = data.decode().strip()
 
-# ConnectedClients, ClientCount, and lock are defined in the Globals.py file
-
-# Server code
-def HandleClient(ClientSocket, addr):
-    """
-    This function connects to one client and handle its communication.
-    """
-    SignalColor = "\033[93m" # Yellow
-    resetColor = "\033[0m" # Reset color
-
-    #Ask the client for their persona / username
-    ClientSocket.send("Enter your name: ".encode())
-    ClientName = ClientSocket.recv(1024).decode().strip()
-    # If the name provided is a empty string assign a random name.
+    # Validate the client's name (with asynchronous locking)
     while True:
-        with Globals.lock:
-            if not ClientName:
+        async with Globals.lock:
+            if not clientName:
                 while True:
                     randomName = f"Client{random.randint(1, 1000)}"
                     if randomName not in Globals.ConnectedClients:
-                        ClientName = randomName
+                        clientName = randomName
                         break
-            while ClientName in Globals.ConnectedClients:
-                ClientSocket.send("Name already taken. Please enter a different name: ".encode())
-                ClientName = ClientSocket.recv(1024).decode().strip()
-                # If the name provided is a empty string assign a random name.
-                if not ClientName:
+            while clientName in Globals.ConnectedClients:
+                writer.write("Name already taken. Please enter a different name: ".encode())
+                await writer.drain()
+                data = await reader.read(1024)
+                clientName = data.decode().strip()
+                if not clientName:
                     while True:
                         randomName = f"Client{random.randint(1, 1000)}"
                         if randomName not in Globals.ConnectedClients:
-                            ClientName = randomName
+                            clientName = randomName
                             break
-            # Exit the loop if ClientName is unique.
-            if ClientName not in Globals.ConnectedClients:
+            if clientName not in Globals.ConnectedClients:
                 break
 
-    # Now we want to store the client's name in the dictionary
-    with Globals.lock:
-        Globals.ConnectedClients[ClientName] = ClientSocket
+    async with Globals.lock:
+        Globals.ConnectedClients[clientName] = writer
         Globals.ClientCount += 1
 
     print(f"[{cmdHandler.Timestamp()}] New connection from {addr}")
 
-    
-    while True:
-        try:
-            # Attempt to receive a message from the client.
-            message = ClientSocket.recv(1024).decode()
-            if not message:
-                break
-            print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
-
-            # Check if the message is meant to be a command
-            if message.startswith("!"):
-                command = message[1:].lower()
-
-                # Prevent clients from executing the !broadcast command
-                if command == "broadcast":
-                    response = "Access Denied: Only the server can broadcast messages."
-
-                # Check if the command exists in the dictionary
-                elif command in cmdHandler.CommandDict:
-                    if command == "whoami":
-                        response = cmdHandler.CommandDict[command](ClientName, addr) # Pass the client's name and address to the function
-                    else:
-                        response = cmdHandler.CommandDict[command](ClientName)
-                else:
-                    response = "Invalid command. for help type !help"
-
-                # Send the response back to the client
-                ClientSocket.send(response.encode())
-            else:
-                # If the Message is a regular normal message do nothing
-                response = f"{SignalColor}[{cmdHandler.Timestamp()}]{resetColor} {ClientName}: {message}"
-                
-                with Globals.lock:
-                    for client in Globals.ConnectedClients.values():
-                        try:
-                            client.send(response.encode())
-                        except Exception as e:
-                            print(f"[{cmdHandler.Timestamp()}] Error broadcasting to a client: {e}")
-                            
-
-        except Exception as e:
-            print(f"[{cmdHandler.Timestamp()}] Error: {e}")
-            break
-    
-    # Remove client from list on disconnect
-    with Globals.lock:
-        del Globals.ConnectedClients[ClientName]
-        Globals.ClientCount -= 1
-    
-    # Close the connection
-    print(f"[{cmdHandler.Timestamp()}] Connection closed: {addr}")
-    ClientSocket.close()
-
-
-# Command only for the server to broadcast a message to all clients
-def Broadcast(message):
-    """
-    Sends a message to all connected clients and ensures only server can do it.
-    (Currently technically excessive as normal messages is seen by everyone will maybe change later and make multiple chat rooms and stuff.)
-    """
-    SignalColor = "\033[93m" # Yellow
-    resetColor = "\033[0m" # Reset color
-
-    MessageFormat = f"{SignalColor}[BROADCAST]{resetColor} {message}"
-
-    with Globals.lock: 
-        for client in Globals.ConnectedClients.values():
-            try:
-                client.send(MessageFormat.encode())
-            except:
-                pass # Ignore errors if the client is not reachable or disconnected
-
-def ServerCommandCheck():
-    """
-    This function listen and checks for server-side commands ensuring they are done only by server.
-    """
     try:
         while True:
-            command = input("Server Command: ").strip().lower()
-            if command.startswith("!broadcast"):
-                message = command[len("!broadcast"):].strip()
-                if message:
-                    Broadcast(message)
-                    print(f"[{cmdHandler.Timestamp()}] Broadcast sent: {message}")
-                else:
-                    print("Usage: !broadcast <message>")
-            elif command == "!exit":
-                print("Shutting down server...")
+            data = await reader.read(1024)
+            if not data:
                 break
+            message = data.decode().strip()
+            print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
+
+            # Check for commands (messages starting with "!")
+            if message.startswith("!"):
+                command = message[1:].lower()
+                if command == "broadcast":
+                    response = "Access Denied: Only the server can broadcast messages."
+                elif command in cmdHandler.CommandDict:
+                    if command == "whoami":
+                        response = cmdHandler.CommandDict[command](clientName, addr)
+                    else:
+                        response = cmdHandler.CommandDict[command](clientName)
+                else:
+                    response = "Invalid command. for help type !help"
+                writer.write(response.encode())
+                await writer.drain()
             else:
-                print("Unknown server command.")
-    except KeyboardInterrupt:
-        # Catch Ctrl+C and exit gracefully
-        print("Keyboard Interrupt: Shutting down server...")
+                # Regular message; broadcast to all clients
+                signalColor = "\033[93m"
+                resetColor = "\033[0m"
+                response = f"{signalColor}[{cmdHandler.Timestamp()}]{resetColor} {clientName}: {message}"
+                async with Globals.lock:
+                    for clientWriter in Globals.ConnectedClients.values():
+                        try:
+                            clientWriter.write(response.encode())
+                            await clientWriter.drain()
+                        except Exception as e:
+                            print(f"[{cmdHandler.Timestamp()}] Error broadcasting to a client: {e}")
+    except Exception as e:
+        print(f"[{cmdHandler.Timestamp()}] Error: {e}")
 
+    # Remove client on disconnect
+    async with Globals.lock:
+        if clientName in Globals.ConnectedClients:
+            del Globals.ConnectedClients[clientName]
+            Globals.ClientCount -= 1
 
-# Now we want to initialize our simple server.
-ServerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-ServerSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    print(f"[{cmdHandler.Timestamp()}] Connection closed: {addr}")
+    writer.close()
+    await writer.waitClosed()
 
-try:
-    ServerSocket.bind((HOST, PORT))
-    ServerSocket.listen(5)
+async def Broadcast(message):
+    """
+    Broadcasts a message to all connected clients.
+    """
+    signalColor = "\033[93m"
+    resetColor = "\033[0m"
+    messageFormat = f"{signalColor}[BROADCAST]{resetColor} {message}"
+    async with Globals.lock:
+        for writer in Globals.ConnectedClients.values():
+            try:
+                writer.write(messageFormat.encode())
+                await writer.drain()
+            except Exception:
+                pass
+
+async def ServerCommandCheck():
+    """
+    Checks for server-side commands (run in a background task).
+    """
+    loop = asyncio.get_event_loop()
+    while True:
+        # Run input() in a thread so as not to block the event loop
+        command = await loop.run_in_executor(None, input, "Server Command: ")
+        command = command.strip().lower()
+        if command.startswith("!broadcast"):
+            message = command[len("!broadcast"):].strip()
+            if message:
+                await Broadcast(message)
+                print(f"[{cmdHandler.Timestamp()}] Broadcast sent: {message}")
+            else:
+                print("Usage: !broadcast <message>")
+        elif command == "!exit":
+            print("Shutting down server...")
+            for task in asyncio.all_tasks():
+                task.cancel()
+            break
+        else:
+            print("Unknown server command.")
+
+async def Main():
+    SERVER_IP = await GetLocalIP()
+    print(f"[{cmdHandler.Timestamp()}] Server detected IP: {SERVER_IP}")
+
+    server = await asyncio.start_server(HandleClient, HOST, PORT)
     print(f"[{cmdHandler.Timestamp()}] Server started on {SERVER_IP}:{PORT}")
 
-    threading.Thread(target=ServerCommandCheck, daemon=True).start()
+    # Start the server command check as a background task
+    asyncio.create_task(ServerCommandCheck())
 
-    while True:
-        ClientSocket, addr = ServerSocket.accept()
-        ClientThread = threading.Thread(target=HandleClient, args=(ClientSocket, addr), daemon=True)
-        ClientThread.start()
-except Exception as e:
-    print(f"[{cmdHandler.Timestamp()}] Server Error: {e}")
-finally:
-    ServerSocket.close()
-    print(f"[{cmdHandler.Timestamp()}] Server closed")
+    async with server:
+        await server.serve_forever()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(Main())
+    except asyncio.CancelledError:
+        print(f"[{cmdHandler.Timestamp()}] Server shutting down gracefully.")
