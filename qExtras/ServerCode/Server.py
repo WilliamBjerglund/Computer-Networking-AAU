@@ -25,87 +25,117 @@ PORT = 12345
 
 async def HandleClient(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     addr = writer.get_extra_info('peername')
-    # Ask the client for their name
+    clientName = await getClientName(reader, writer)
+    await registerClient(clientName, writer)
+
+    print(f"[{cmdHandler.Timestamp()}] New connection from {addr}")
+
+    try:
+        await handleClientMessages(reader, writer, clientName, addr)
+    except Exception as e:
+        print(f"[{cmdHandler.Timestamp()}] Error: {e}")
+    finally:
+        await unregisterClient(clientName)
+        print(f"[{cmdHandler.Timestamp()}] Connection closed: {addr}")
+        writer.close()
+        await writer.wait_closed()
+
+async def getClientName(reader, writer):
     writer.write("Enter your name: ".encode())
     await writer.drain()
     data = await reader.read(1024)
     clientName = data.decode().strip()
 
-    # Validate the client's name (with asynchronous locking)
     while True:
         async with Globals.lock:
             if not clientName:
-                while True:
-                    randomName = f"Client{random.randint(1, 1000)}"
-                    if randomName not in Globals.ConnectedClients:
-                        clientName = randomName
-                        break
+                clientName = await generateRandomName()
             while clientName in Globals.ConnectedClients:
                 writer.write("Name already taken. Please enter a different name: ".encode())
                 await writer.drain()
                 data = await reader.read(1024)
                 clientName = data.decode().strip()
                 if not clientName:
-                    while True:
-                        randomName = f"Client{random.randint(1, 1000)}"
-                        if randomName not in Globals.ConnectedClients:
-                            clientName = randomName
-                            break
+                    clientName = await generateRandomName()
             if clientName not in Globals.ConnectedClients:
                 break
+    return clientName
 
+async def generateRandomName():
+    while True:
+        randomName = f"Client{random.randint(1, 1000)}"
+        if randomName not in Globals.ConnectedClients:
+            return randomName
+
+async def registerClient(clientName, writer):
     async with Globals.lock:
         Globals.ConnectedClients[clientName] = writer
         Globals.ClientCount += 1
 
-    print(f"[{cmdHandler.Timestamp()}] New connection from {addr}")
-
-    try:
-        while True:
-            data = await reader.read(1024)
-            if not data:
-                break
-            message = data.decode().strip()
-            print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
-
-            # Check for commands (messages starting with "!")
-            if message.startswith("!"):
-                command = message[1:].lower()
-                if command == "broadcast":
-                    response = "Access Denied: Only the server can broadcast messages."
-                elif command in cmdHandler.CommandDict:
-                    if command == "whoami":
-                        response = cmdHandler.CommandDict[command](clientName, addr)
-                    else:
-                        response = cmdHandler.CommandDict[command](clientName)
-                else:
-                    response = "Invalid command. for help type !help"
-                writer.write(response.encode())
-                await writer.drain()
-            else:
-                # Regular message; broadcast to all clients
-                signalColor = "\033[93m"
-                resetColor = "\033[0m"
-                response = f"{signalColor}[{cmdHandler.Timestamp()}]{resetColor} {clientName}: {message}"
-                async with Globals.lock:
-                    for clientWriter in Globals.ConnectedClients.values():
-                        try:
-                            clientWriter.write(response.encode())
-                            await clientWriter.drain()
-                        except Exception as e:
-                            print(f"[{cmdHandler.Timestamp()}] Error broadcasting to a client: {e}")
-    except Exception as e:
-        print(f"[{cmdHandler.Timestamp()}] Error: {e}")
-
-    # Remove client on disconnect
+async def unregisterClient(clientName):
     async with Globals.lock:
         if clientName in Globals.ConnectedClients:
             del Globals.ConnectedClients[clientName]
             Globals.ClientCount -= 1
 
-    print(f"[{cmdHandler.Timestamp()}] Connection closed: {addr}")
-    writer.close()
-    await writer.waitClosed()
+async def handleClientMessages(reader, writer, clientName, addr):
+    while True:
+        data = await reader.read(1024)
+        if not data:
+            break
+        message = data.decode().strip()
+        print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
+
+        if message.startswith("!"):
+            await handleCommand(message, writer, clientName, addr)
+        else:
+            await broadcastMessage(clientName, message)
+
+async def handleCommand(message, writer, clientName, addr):
+    command = message[1:].lower()
+    if command.startswith("pm"):
+        await handlePrivateMessage(command, writer, clientName)
+    elif command == "broadcast":
+        response = "Access Denied: Only the server can broadcast messages."
+    elif command in cmdHandler.CommandDict:
+        if command == "whoami":
+            response = cmdHandler.CommandDict[command](clientName, addr)
+        else:
+            response = cmdHandler.CommandDict[command](clientName)
+    else:
+        response = "Invalid command. for help type !help"
+    writer.write(response.encode())
+    await writer.drain()
+
+async def handlePrivateMessage(command, writer, clientName):
+    parts = command.split(' ', 2)
+    if len(parts) < 3:
+        response = "Usage: !pm <username> <message>"
+    else:
+        targetUser, privateMessage = parts[1], parts[2]
+        async with Globals.lock:
+            if targetUser in Globals.ConnectedClients:
+                targetWriter = Globals.ConnectedClients[targetUser]
+                response = f"Private message from {clientName}: {privateMessage}"
+                targetWriter.write(response.encode())
+                await targetWriter.drain()
+                response = "Private message sent."
+            else:
+                response = "User not found."
+    writer.write(response.encode())
+    await writer.drain()
+
+async def broadcastMessage(clientName, message):
+    signalColor = "\033[93m"
+    resetColor = "\033[0m"
+    response = f"{signalColor}[{cmdHandler.Timestamp()}]{resetColor} {clientName}: {message}"
+    async with Globals.lock:
+        for clientWriter in Globals.ConnectedClients.values():
+            try:
+                clientWriter.write(response.encode())
+                await clientWriter.drain()
+            except Exception as e:
+                print(f"[{cmdHandler.Timestamp()}] Error broadcasting to a client: {e}")
 
 async def Broadcast(message):
     """
@@ -130,15 +160,15 @@ async def ServerCommandCheck():
     while True:
         # Run input() in a thread so as not to block the event loop
         command = await loop.run_in_executor(None, input, "Server Command: ")
-        command = command.strip().lower()
-        if command.startswith("!broadcast"):
+        command = command.strip()
+        if command.lower().startswith("!broadcast"):
             message = command[len("!broadcast"):].strip()
             if message:
                 await Broadcast(message)
                 print(f"[{cmdHandler.Timestamp()}] Broadcast sent: {message}")
             else:
                 print("Usage: !broadcast <message>")
-        elif command == "!exit":
+        elif command.lower() == "!exit":
             print("Shutting down server...")
             for task in asyncio.all_tasks():
                 task.cancel()
