@@ -61,7 +61,7 @@ class Commands:
             async with Globals.lock:
                 if targetUser in Globals.ConnectedClients:
                     targetWriter = Globals.ConnectedClients[targetUser]
-                    response = f"Private message from {clientName}: {privateMessage}"
+                    response = f"{self.SignalColor}Private message from {clientName}:{self.resetColor} {privateMessage}"
                     targetWriter.write(response.encode())
                     await targetWriter.drain()
                     response = "Private message sent."
