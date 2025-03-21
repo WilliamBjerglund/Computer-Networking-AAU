@@ -1,17 +1,15 @@
-import sqlite3 as lite
-import sys
+import sqlite3
 
-# Create a version of the database in database file (.db)
+# Define the database name
 DB_NAME = "mydatabase.db"
-con = lite.connect(DB_NAME)
 
-# Create a version of the database in RAM 
-# con = lite.connect(':memory:')
+# Connect to the SQLite database (or create it if it doesn't exist)
+con = sqlite3.connect(DB_NAME)
 
-# Creates the SQLite cursor that is used to query the database
-cur = con.cursor()  
+# Create a cursor object to interact with the database
+cur = con.cursor()
 
-# Execute desired SQL script
+# Execute SQL script to create and populate the Cars table
 cur.executescript("""
     DROP TABLE IF EXISTS Cars;
     CREATE TABLE Cars(Id INT, Name TEXT, Price INT);
@@ -23,17 +21,19 @@ cur.executescript("""
     INSERT INTO Cars VALUES(6,'Citroen',21000);
     INSERT INTO Cars VALUES(7,'Hummer',41400);
     INSERT INTO Cars VALUES(8,'Volkswagen',21600);
-    """)
+""")
 
-# Force the database to make changes with the commit command
+# Commit the changes to the database
 con.commit()
 
-# Execute simple SQL query
-cur.execute('SELECT Name FROM Cars WHERE Price < 30000 ORDER BY Price')
-for i in cur:
-    print("\n")
-    for j in i:
-        print(j)
+# Execute SQL query to fetch all Volvo cars
+cur.execute("SELECT * FROM Cars WHERE Name = 'Volvo';")
+volvo_cars = cur.fetchall()
 
-# Close the database
+# Print the output of the Volvo query
+print("\nAll Volvo cars in the database:")
+for car in volvo_cars:
+    print(car)
+
+# Close the database connection
 con.close()
