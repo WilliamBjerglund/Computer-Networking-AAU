@@ -1,8 +1,10 @@
+import re
 import asyncio
 import random
 import socket
 import Globals
 import time
+import Database
 from Commands import Commands
 
 cmdHandler = Commands()
@@ -176,13 +178,28 @@ async def handleClientMessages(reader, writer, clientName, addr, RateLimit=RATEL
             break
         message = data.decode().strip()
         print(f"[{cmdHandler.Timestamp()}] Client ({addr}): {message}")
+
         # Confirm Heartbeat
         if message == "heartbeat":
             async with Globals.lock:
                 Globals.LastClientHeartbeat[clientName] = time.time()
             continue
-        # Check for rate limiting
+        
+        # Track time
         currentTime = time.time()
+        
+        # Check for flagged words
+        if clientName in Globals.MutedClients:
+            if currentTime < Globals.MutedClients[clientName]:
+                remaingTime = int(Globals.MutedClients[clientName] - currentTime)
+                WarningMessage = f"You used innaproppriate language. You are muted for {remaingTime} seconds."
+                writer.write(WarningMessage.encode())
+                await writer.drain()
+                continue
+            else:
+                del Globals.MutedClients[clientName]
+            
+        # Check for rate limiting
         if clientName not in clientMessageTimestamps:
             clientMessageTimestamps[clientName] = []
         clientMessageTimestamps[clientName] = [timestamp for timestamp in clientMessageTimestamps[clientName] if currentTime - timestamp < TimeWindow]
@@ -192,6 +209,26 @@ async def handleClientMessages(reader, writer, clientName, addr, RateLimit=RATEL
             await writer.drain()
             continue
         clientMessageTimestamps[clientName].append(currentTime)
+
+        # If not a command, check for flagged words
+        if not message.startswith("!"):
+            flaggedFound = False
+            for flagged in Globals.FlaggedWords:
+                pattern = re.compile(rf"\b{re.escape(flagged)}\b", re.IGNORECASE)
+                if pattern.search(message):
+                    flaggedFound = True
+                    # Log the flagged message
+                    Database.InsertFlaggedMessage(clientName, addr[0], message, flagged)
+                    # Mute the client for 300 seconds (5 minutes)
+                    Globals.MutedClients[clientName] = currentTime + 300
+                    WarningMessage = f"You are using innapropriate language and have been muted for 5 minutes."
+                    writer.write(WarningMessage.encode())
+                    await writer.drain()
+                    break
+            if flaggedFound:
+                continue
+
+        # Process commands or broadcast message
         if message.startswith("!"):
             await handleCommand(message, writer, clientName, addr)
         else:
@@ -301,6 +338,9 @@ async def Main():
     """
     Main entry point of the server. Starts the server and background tasks.
     """
+    # Initialize the flagged messages database
+    Database.InitDB()
+
     SERVER_IP = await GetLocalIP()
     print(f"[{cmdHandler.Timestamp()}] Server detected IP: {SERVER_IP}")
 

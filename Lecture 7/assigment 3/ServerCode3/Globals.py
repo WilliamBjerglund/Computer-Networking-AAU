@@ -11,3 +11,9 @@ lock = asyncio.Lock()
 
 # Dictionary to track Heartbeat timestamps for each client (last entry)
 LastClientHeartbeat = {}
+
+# Dictionary to track the Clients that are currently Muted for using flagged words
+MutedClients = {}
+
+# List of flagged words
+FlaggedWords = ["Faggot", "Paki", "Retard", "Cocksucker", "Whore", "Cracker"]
